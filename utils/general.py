@@ -29,7 +29,7 @@ from typing import Optional
 from zipfile import ZipFile, is_zipfile
 
 import cv2
-import IPython
+# import IPython
 import numpy as np
 import pandas as pd
 import pkg_resources as pkg
@@ -79,6 +79,7 @@ def is_colab():
 
 def is_notebook():
     # Is environment a Jupyter notebook? Verified on Colab, Jupyterlab, Kaggle, Paperspace
+    import IPython
     ipython_type = str(type(IPython.get_ipython()))
     return 'colab' in ipython_type or 'zmqshell' in ipython_type
 
