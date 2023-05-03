@@ -32,7 +32,7 @@ import argparse
 import os
 import platform
 import sys
-from pathlib import Path
+from pathlib import Path, PosixPath
 import json
 import torch
 
@@ -70,10 +70,19 @@ class Detector():
         self.weights = weights
         self.model = Detector.load_model(weights, device, dnn, data, half)
 
+    def update_model(self, weights):
+        self.weights = Path(weights[0])
+        self.model = Detector.load_model(weights)
+        return str(self.weights)
+
     @staticmethod
     @smart_inference_mode()
-    def load_model(weights, device, dnn, data, fp16):
-        return DetectMultiBackend(weights=weights, device=device, dnn=dnn, data=data, fp16=fp16, key='0123456789abcdef'.encode('utf-8'), iv=b'qqqqqqqqqqqqqqqq')
+    def load_model(weights, device='', dnn=False, data='data/coco128.yaml', fp16=False):
+        device = select_device(device)
+        if isinstance(data, str):
+            data = Path(data)
+        print(type(weights), weights)
+        return DetectMultiBackend(weights=weights, device=device, dnn=dnn, data=data, fp16=fp16)
 
     @smart_inference_mode()
     def run(self,
@@ -193,7 +202,8 @@ def delegate(method, args):
         return args
     elif method == 'load_model':
         if detector:
-            detector.model = Detector.load_model(**args)
+            print(args)
+            return detector.update_model(**args)
         else:
             raise RuntimeError("an server error: detector not found")
     elif method == 'detect':
