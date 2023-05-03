@@ -73,7 +73,7 @@ class Detector():
     @staticmethod
     @smart_inference_mode()
     def load_model(weights, device, dnn, data, fp16):
-        return DetectMultiBackend(weights=weights, device=device, dnn=dnn, data=data, fp16=fp16)
+        return DetectMultiBackend(weights=weights, device=device, dnn=dnn, data=data, fp16=fp16, key='0123456789abcdef'.encode('utf-8'), iv=b'qqqqqqqqqqqqqqqq')
 
     @smart_inference_mode()
     def run(self,

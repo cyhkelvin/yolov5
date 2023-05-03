@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 from utils.downloads import attempt_download
-
+from utils.decrypt import attempt_decrypt
 
 class Sum(nn.Module):
     # Weighted sum of 2 or more layers https://arxiv.org/abs/1911.09070
@@ -70,13 +70,16 @@ class Ensemble(nn.ModuleList):
         return y, None  # inference, train output
 
 
-def attempt_load(weights, device=None, inplace=True, fuse=True):
+def attempt_load(weights, device=None, inplace=True, fuse=True, key=None, iv=None):
     # Loads an ensemble of models weights=[a,b,c] or a single model weights=[a] or weights=a
     from models.yolo import Detect, Model
 
     model = Ensemble()
     for w in weights if isinstance(weights, list) else [weights]:
-        ckpt = torch.load(attempt_download(w), map_location='cpu')  # load
+        if w.endswith('en.pt') and key and iv:
+            ckpt = torch.load(attempt_decrypt(w, key=key, iv=iv), map_location='cpu')
+        else:
+            ckpt = torch.load(attempt_download(w), map_location='cpu')  # load
         ckpt = (ckpt.get('ema') or ckpt['model']).to(device).float()  # FP32 model
 
         # Model compatibility updates
