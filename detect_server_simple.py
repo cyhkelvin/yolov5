@@ -70,19 +70,25 @@ class Detector():
         self.weights = weights
         self.model = Detector.load_model(weights, device, dnn, data, half)
 
-    def update_model(self, weights):
+    def update_model(self, weights=['./yolov5s.pt'], key=None, iv=None):
         self.weights = Path(weights[0])
-        self.model = Detector.load_model(weights)
+        if key and iv:
+            self.model = Detector.load_model(weights, key=key, iv=iv)
+        else:
+            self.model = Detector.load_model(weights)
         return str(self.weights)
 
     @staticmethod
     @smart_inference_mode()
-    def load_model(weights, device='', dnn=False, data='data/coco128.yaml', fp16=False):
+    def load_model(weights, device='', dnn=False, data='data/coco128.yaml', fp16=False, key=None, iv=None):
         device = select_device(device)
         if isinstance(data, str):
             data = Path(data)
         print(type(weights), weights)
-        return DetectMultiBackend(weights=weights, device=device, dnn=dnn, data=data, fp16=fp16)
+        if key and iv:
+            return DetectMultiBackend(weights=weights, device=device, dnn=dnn, data=data, fp16=fp16, key=key, iv=iv)
+        else:
+            return DetectMultiBackend(weights=weights, device=device, dnn=dnn, data=data, fp16=fp16)
 
     @smart_inference_mode()
     def run(self,

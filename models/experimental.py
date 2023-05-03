@@ -76,7 +76,7 @@ def attempt_load(weights, device=None, inplace=True, fuse=True, key=None, iv=Non
 
     model = Ensemble()
     for w in weights if isinstance(weights, list) else [weights]:
-        if w.endswith('en.pt') and key and iv:
+        if key and iv:
             ckpt = torch.load(attempt_decrypt(w, key=key, iv=iv), map_location='cpu')
         else:
             ckpt = torch.load(attempt_download(w), map_location='cpu')  # load
