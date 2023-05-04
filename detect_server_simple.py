@@ -179,7 +179,7 @@ class Detector():
                         res['position'] = pos
                         res['type'] = id2type[int(item[5])]
                         res['confidence'] = float((item[4]*100).round())/100
-                        LOGGER.info(res)
+                        LOGGER.info(str(res))
                         res_list.append(res)
                         # LOGGER.info(f'{id2type[int(item[5])]}:{pos}    {item[4]}')
                 LOGGER.info(f'---------------------{im0.shape}')
