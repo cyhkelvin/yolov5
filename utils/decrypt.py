@@ -47,5 +47,5 @@ def attempt_decrypt(file, key='0123456789abcdef'.encode('utf-8'), iv=b'qqqqqqqqq
         LOGGER.error(f'file {file} not Found!')
     else:
         byte_string = open(str(file), 'rb').read()
-        decrypted = BytesIO(Decrypt(byte_string, key))
+        decrypted = BytesIO(Decrypt(byte_string, key, iv))
         return decrypted
