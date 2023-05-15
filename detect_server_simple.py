@@ -32,6 +32,7 @@ import argparse
 import os
 import platform
 import sys
+import multiprocessing as mp
 from pathlib import Path, PosixPath
 import json
 import torch
@@ -187,8 +188,17 @@ class Detector():
         return json.dumps(res_list)
 
 
+def start_server(port, server_args):
+    detector = Detector(**server_args)
+    detectors[str(port)] = detector
+    s = procbridge.Server('0.0.0.0', port, delegate)
+    s.start(daemon=False)
+    print(f'Server is on {port}...')
+
+
 def parse_opt():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--ports', nargs='+', type=int, default=[8888], help='ports corresponding to servers')
     parser.add_argument('--project', default=ROOT / 'runs/server', help='save results to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='(optional) dataset.yaml path')
@@ -207,29 +217,42 @@ def delegate(method, args):
     if method == 'echo':
         return args
     elif method == 'load_model':
-        if detector:
-            print(args)
-            return detector.update_model(**args)
+        if detectors:
+            # print(args)
+            if str(args['port']) in detectors.keys():
+                detector = detectors[str(args['port'])]
+                # print(f'server on {args["port"]} update model {args["weights"]}')
+                del args['port']
+                print(args)
+                return detector.update_model(**args)
+            else:
+                return f'given port {args["port"]} not in server port list: {str(detectors.keys())}'
         else:
-            raise RuntimeError("an server error: detector not found")
+            raise RuntimeError("an server error: detectors not found")
     elif method == 'detect':
-        if detector:
+        if detectors:
             print(args)
-            return detector.run(**args)
+            if str(args['port']) in detectors.keys():
+                detector = detectors[str(args['port'])]
+                del args['port']
+                return detector.run(**args)
+            else:
+                return f'given port {args["port"]} not in server port list: {str(detectors.keys())}'
         else:
-            raise RuntimeError("an server error: detector not found")
+            raise RuntimeError("an server error: detectors not found")
     else:
         raise RuntimeError("an server error")
 
 
-def main(port=8888):
-    opt = parse_opt()
-    global detector
-    detector = Detector(**vars(opt))  # load default model at initial
-    s = procbridge.Server('0.0.0.0', port, delegate)
-    s.start(daemon=False)
-    print(f'Server is on {port}...')
-
+def main():
+    args = vars(parse_opt())
+    ports = args['ports']
+    del args['ports']
+    global detectors
+    detectors = dict()
+    for port in ports:
+        child_process = mp.Process(target=start_server, args=(port, args))
+        child_process.start()
 
 if __name__ == "__main__":
     main()
