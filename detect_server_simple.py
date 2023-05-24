@@ -30,10 +30,8 @@ Usage - formats:
 
 import argparse
 import os
-import platform
 import sys
-import multiprocessing as mp
-from pathlib import Path, PosixPath
+from pathlib import Path
 import json
 import torch
 
@@ -144,7 +142,6 @@ class Detector():
         tmp=(1 if pt or model.triton else bs, 3, *imgsz)
         model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz))  # warmup
         seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
-        id2type = {0: 'person', 1: 'personcart'}
         res_list = list()
         for path, im, im0s, vid_cap, s in dataset:
             with dt[0]:
@@ -178,7 +175,7 @@ class Detector():
                         # pos = [f'{float(i):.02f}' for i in item[:4]]
                         pos = [float((i*100).round())/100 for i in item[:4]]
                         res['position'] = pos
-                        res['type'] = id2type[int(item[5])]
+                        res['type'] = names[int(item[5])]
                         res['confidence'] = float((item[4]*100).round())/100
                         LOGGER.info(str(res))
                         res_list.append(res)
@@ -198,7 +195,7 @@ def start_server(port, server_args):
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ports', nargs='+', type=int, default=[8888], help='ports corresponding to servers')
+    parser.add_argument('--ports', nargs='+', type=int, default=[8888, 8889], help='ports corresponding to servers')
     parser.add_argument('--project', default=ROOT / 'runs/server', help='save results to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='(optional) dataset.yaml path')
@@ -251,8 +248,7 @@ def main():
     global detectors
     detectors = dict()
     for port in ports:
-        child_process = mp.Process(target=start_server, args=(port, args))
-        child_process.start()
+        start_server(port, args)
 
 if __name__ == "__main__":
     main()
