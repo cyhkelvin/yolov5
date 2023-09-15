@@ -745,6 +745,18 @@ def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
         35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
         64, 65, 67, 70, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84, 85, 86, 87, 88, 89, 90]
 
+def xyinroi(cx, cy, roi_xyxy):
+    if cx < roi_xyxy[0]:
+        return False
+    elif cx > roi_xyxy[2]:
+        return False
+    elif cy < roi_xyxy[1]:
+        return False
+    elif cy > roi_xyxy[3]:
+        return False
+    else:
+        return True
+
 
 def xyxy2xywh(x):
     # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] where xy1=top-left, xy2=bottom-right
