@@ -48,7 +48,8 @@ from utils.general import (LOGGER, Profile, check_file, check_img_size, check_im
                            increment_path, non_max_suppression, print_args, scale_boxes, strip_optimizer, xyxy2xywh, xyinroi)
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, smart_inference_mode
-
+from projection_control import ProjectionControl
+from roi_control import ROIControl
 
 @smart_inference_mode()
 def run(
@@ -116,42 +117,10 @@ def run(
     seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
 
     if view_img:
-        class UIControl:
-            def __init__(self):
-                self.mode = 'init'  # init, select, track
-                self.target_tl = (-1, -1)
-                self.target_br = (-1, -1)
-                self.new_init = True
-
-            def mouse_callback(self, event, x, y, flags, param):
-                if event == cv2.EVENT_LBUTTONDOWN and self.mode == 'init':
-                    self.target_tl = (x, y)
-                    self.target_br = (x, y)
-                    self.mode = 'select'
-                elif event == cv2.EVENT_MOUSEMOVE and self.mode == 'select':
-                    self.target_br = (x, y)
-                elif event == cv2.EVENT_LBUTTONDOWN and self.mode == 'select':
-                    self.target_br = (x, y)
-                    self.mode = 'init'
-                    self.new_init = True
-
-            def get_tl(self):
-                return self.target_tl if self.target_tl[0] < self.target_br[0] else self.target_br
-
-            def get_br(self):
-                return self.target_br if self.target_tl[0] < self.target_br[0] else self.target_tl
-
-            def get_bb(self):
-                tl = self.get_tl()
-                br = self.get_br()
-
-                bb = [min(tl[0], br[0]), min(tl[1], br[1]), abs(br[0] - tl[0]), abs(br[1] - tl[1])]
-                return bb
-        ui_control = UIControl()
-        if ui_control.new_init:
-            roi = ui_control.get_bb()
+        roi_control = ROIControl()
+        proj_control = ProjectionControl()
         roi_color = (0, 255, 255)
-                    
+
     for path, im, im0s, vid_cap, s in dataset:
         with dt[0]:
             im = torch.from_numpy(im).to(model.device)
@@ -183,6 +152,7 @@ def run(
 
             p = Path(p)  # to Path
             cv_win_name = str(os.path.basename(Path(p)))
+            map_win_name = 'map'
             save_path = str(save_dir / p.name)  # im.jpg
             txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # im.txt
             s += '%gx%g ' % im.shape[2:]  # print string
@@ -194,21 +164,35 @@ def run(
                 if cv_win_name not in windows:
                     windows.append(cv_win_name)
                     cv2.namedWindow(cv_win_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
-                    cv2.resizeWindow(cv_win_name, im0.shape[1], im0.shape[0])
-                    cv2.setMouseCallback(cv_win_name, ui_control.mouse_callback)
-                
+                    if max(im0.shape) > 1000:
+                        cv2.resizeWindow(cv_win_name, int(im0.shape[1]*0.8), int(im0.shape[0]*0.8))
+                    else:
+                        cv2.resizeWindow(cv_win_name, im0.shape[1], im0.shape[0])
+                    cv2.setMouseCallback(cv_win_name, roi_control.mouse_callback)
+
                 selected = False
-                while ui_control.new_init or ui_control.mode == 'select':
-                    vis = im0.copy()
+                vis = im0.copy()
+                while roi_control.new_init or roi_control.mode == 'select':
                     key = cv2.waitKey(60)
-                    if ui_control.mode == 'select':
+                    if roi_control.mode == 'select':
                         selected = True
                         key = ord('p')
                     elif selected:
-                        ui_control.new_init = False
-                    roi = ui_control.get_bb()
+                        roi_control.new_init = False
+                    roi = roi_control.get_bb()
+                    proj_control.set_pts1_bb(roi)
                     cv2.rectangle(vis, (roi[0], roi[1]), (roi[2] + roi[0], roi[3] + roi[1]), (0, 0, 255), 5)
                     cv2.imshow(cv_win_name, vis)
+                    vis = im0.copy()
+                roi = roi_control.get_bb()
+                proj_control.set_pts1_bb(roi)
+                cv2.rectangle(vis, (roi[0], roi[1]), (roi[2] + roi[0], roi[3] + roi[1]), (0, 0, 255), 5)
+                cv2.imshow(cv_win_name, vis)
+                windows.append(map_win_name)
+                cv2.namedWindow(map_win_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+                cv2.resizeWindow(map_win_name, 320, 440)
+                cv2.imshow(map_win_name, proj_control.map_img)
+                map = proj_control.map_img.copy()
 
             if len(det):
                 # Rescale boxes from img_size to im0 size
@@ -222,15 +206,14 @@ def run(
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
                     # valid in ROI
-                    print('------------------')
                     if not roi == [-1, -1, 0, 0]:
-                        xywh = xyxy2xywh(torch.tensor(xyxy).view(1, 4)).view(-1).tolist()  # normalized xywh
-                        roi_xyxy = [roi[0], roi[1], roi[2] + roi[0], roi[3] + roi[1]]
-                        if not xyinroi(xywh[0], xywh[1], roi_xyxy):
-                            print(xywh)
-                            continue
+                        pt_x, pt_y = (xyxy[0]+xyxy[2])/2, xyxy[3]
+                        if roi_control.pt_in_bb(pt_x, pt_y):
+                            if view_img:
+                                name = names[int(cls)]
+                                map = proj_control.draw_points(pt_x.to('cpu'), pt_y.to('cpu'), name, map)
                         else:
-                            print(xywh, roi_xyxy)
+                            continue
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()
                         line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
@@ -248,10 +231,9 @@ def run(
             im0 = annotator.result()
 
             if view_img:
-                if p not in windows:
-                    cv2.resizeWindow(cv_win_name, im0.shape[1], im0.shape[0])
                 cv2.rectangle(im0, (roi[0], roi[1]), (roi[2] + roi[0], roi[3] + roi[1]), roi_color, 5)
                 cv2.imshow(cv_win_name, im0)
+                cv2.imshow(map_win_name, map)
                 key = cv2.waitKey(10)
                 if key == ord('p'):
                     while True:
