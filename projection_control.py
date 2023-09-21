@@ -20,20 +20,25 @@ class ProjectionControl():
     def set_aspect_ratio(self, w, h):
         self.ar_width = w
         self.ar_height = h
-        self.pts2 = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
+        self.pts2 = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
 
     def set_pixel_per_unit(self, pixel_per_unit):
         self.pixel_per_unit = pixel_per_unit
 
     def set_pts1(self, lu, ru, ld, rd):
         # (x, y) of leftup, rightup, leftdown, rightdown points
-        self.pts1 = np.float32([lu, ru, ld, rd])
+        self.pts1 = np.float32([lu, ru, rd, ld])
 
-    def set_pts1_bb(self, xywh):
-        self.pts1 = np.float32([xywh[:2], \
-                               [xywh[0]+xywh[2], xywh[1]], \
-                               [xywh[0], xywh[1]+xywh[3]], \
-                               [xywh[0]+xywh[2], xywh[1]+xywh[3]]])
+    def set_pts1_bb(self, bb, mode='rect'):
+        if mode == 'rect':
+            self.pts1 = np.float32([bb[:2], \
+                               [bb[0]+bb[2], bb[1]], \
+                               [bb[0]+bb[2], bb[1]+bb[3]], \
+                               [bb[0], bb[1]+bb[3]]])
+        elif mode == 'poly':
+            self.pts1 = np.float32(bb)
+        else:
+            self.pts1 = None
 
     def draw_grid(self, image=None, color=(255, 255, 255)):
         """Draw grid lines in 2D view"""
@@ -82,6 +87,7 @@ class ProjectionControl():
         """Get x and y coordinates that will be used in tracker module"""
         # compute point in 2D map
         # calculate matrix Homo
+        # points1: source points2: projection
         homo, status = cv2.findHomography(points1, points2)
         axis = np.array([centroid], dtype='float32') # provide a point you wish to map
         axis = np.array([axis])

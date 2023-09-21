@@ -50,6 +50,19 @@ from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, smart_inference_mode
 from projection_control import ProjectionControl
 from roi_control import ROIControl
+import numpy as np
+
+
+def draw_selection(image, roi, mode='rect'):
+    if mode == 'rect':  # [x, y, w, h]
+        res = cv2.rectangle(image, (roi[0], roi[1]), (roi[2] + roi[0], roi[3] + roi[1]), (0, 0, 255), 5)
+    elif mode == 'poly':  # ordered points of quadrilateral in list
+        pts = np.array(roi).reshape((-1, 1, 2))
+        res = cv2.polylines(image, [pts], True, (0,255,255), 2)
+    else:
+        raise(f'Invalid mode: {mode}')
+    return res
+
 
 @smart_inference_mode()
 def run(
@@ -117,7 +130,8 @@ def run(
     seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
 
     if view_img:
-        roi_control = ROIControl()
+        roi_selection = 'poly'  # 'rect'
+        roi_control = ROIControl(roi_selection)
         proj_control = ProjectionControl()
         roi_color = (0, 255, 255)
 
@@ -172,21 +186,21 @@ def run(
 
                 selected = False
                 vis = im0.copy()
-                while roi_control.new_init or roi_control.mode == 'select':
+                while roi_control.new_init or roi_control.status == 'select':
                     key = cv2.waitKey(60)
-                    if roi_control.mode == 'select':
+                    if roi_control.status == 'select':
                         selected = True
                         key = ord('p')
                     elif selected:
                         roi_control.new_init = False
                     roi = roi_control.get_bb()
-                    proj_control.set_pts1_bb(roi)
-                    cv2.rectangle(vis, (roi[0], roi[1]), (roi[2] + roi[0], roi[3] + roi[1]), (0, 0, 255), 5)
+                    proj_control.set_pts1_bb(roi, roi_selection)
+                    vis = draw_selection(vis, roi, roi_selection)
                     cv2.imshow(cv_win_name, vis)
                     vis = im0.copy()
                 roi = roi_control.get_bb()
-                proj_control.set_pts1_bb(roi)
-                cv2.rectangle(vis, (roi[0], roi[1]), (roi[2] + roi[0], roi[3] + roi[1]), (0, 0, 255), 5)
+                proj_control.set_pts1_bb(roi, roi_selection)
+                vis = draw_selection(vis, roi, roi_selection)
                 cv2.imshow(cv_win_name, vis)
                 windows.append(map_win_name)
                 cv2.namedWindow(map_win_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
@@ -208,7 +222,7 @@ def run(
                     # valid in ROI
                     if not roi == [-1, -1, 0, 0]:
                         pt_x, pt_y = (xyxy[0]+xyxy[2])/2, xyxy[3]
-                        if roi_control.pt_in_bb(pt_x, pt_y):
+                        if roi_control.pt_in_roi(pt_x, pt_y):
                             if view_img:
                                 name = names[int(cls)]
                                 map = proj_control.draw_points(pt_x.to('cpu'), pt_y.to('cpu'), name, map)
@@ -231,7 +245,7 @@ def run(
             im0 = annotator.result()
 
             if view_img:
-                cv2.rectangle(im0, (roi[0], roi[1]), (roi[2] + roi[0], roi[3] + roi[1]), roi_color, 5)
+                im0 = draw_selection(im0, roi, roi_selection)
                 cv2.imshow(cv_win_name, im0)
                 cv2.imshow(map_win_name, map)
                 key = cv2.waitKey(10)
