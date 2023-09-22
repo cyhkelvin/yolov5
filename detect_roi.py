@@ -53,12 +53,21 @@ from roi_control import ROIControl
 import numpy as np
 
 
-def draw_selection(image, roi, mode='rect'):
+def draw_selection(image, roi, mode='rect', roi_color=(255,0,0), text_color=(255,255,0)):
+    
     if mode == 'rect':  # [x, y, w, h]
-        res = cv2.rectangle(image, (roi[0], roi[1]), (roi[2] + roi[0], roi[3] + roi[1]), (0, 0, 255), 5)
+        res = cv2.rectangle(image, (roi[0], roi[1]), (roi[2] + roi[0], roi[3] + roi[1]), roi_color, 5)
+        pos = {'LeftUp': (roi[0], roi[1]), 'RightDown': (roi[2] + roi[0], roi[3] + roi[1])}
+        for text, point in  pos.items():
+            cv2.putText(image, text, (int(point[0]-10), int(point[1]-10)), \
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
     elif mode == 'poly':  # ordered points of quadrilateral in list
         pts = np.array(roi).reshape((-1, 1, 2))
-        res = cv2.polylines(image, [pts], True, (0,255,255), 2)
+        res = cv2.polylines(image, [pts], True, roi_color, 2)
+        ordered_text = ['LeftUp', 'RightUp', 'RightDown', 'LeftDown']
+        for index, point in enumerate(roi):
+            cv2.putText(image, ordered_text[index], (int(point[0]-10), int(point[1]-10)), \
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
     else:
         raise(f'Invalid mode: {mode}')
     return res
@@ -245,7 +254,7 @@ def run(
             im0 = annotator.result()
 
             if view_img:
-                im0 = draw_selection(im0, roi, roi_selection)
+                im0 = draw_selection(im0, roi, roi_selection, roi_color)
                 cv2.imshow(cv_win_name, im0)
                 cv2.imshow(map_win_name, map)
                 key = cv2.waitKey(10)
