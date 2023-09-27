@@ -11,13 +11,12 @@ class ROIControl:
         if mode == 'poly':
             self.pts = list()
             self.cur_pt = (-1, -1)
-            self.num_pts = 4
+            self.num_pts = 4  # set -1 to accept any number of points
         elif self.mode == 'rect':
             self.target_tl = (-1, -1)
             self.target_br = (-1, -1)
         else:
             raise(self.mode_error_msg)
-
 
     def mouse_callback(self, event, x, y, flags, param):
         if self.mode == 'poly':
@@ -31,6 +30,11 @@ class ROIControl:
                 self.pts.append(list(self.cur_pt))
                 self.cur_pt = (x, y)
                 if len(self.pts) == self.num_pts:
+                    self.cur_pt = (-1, -1)
+                    self.status = 'init'
+                    self.new_init = True
+            elif event == cv2.EVENT_RBUTTONDOWN and self.status == 'select':
+                if len(self.pts) >= 3 and self.num_pts == -1:
                     self.cur_pt = (-1, -1)
                     self.status = 'init'
                     self.new_init = True
@@ -62,7 +66,7 @@ class ROIControl:
             ### bb = [pt1, pt2, pt3, pt4] ###
             if len(self.pts) < self.num_pts:
                 bb = [*self.pts, list(self.cur_pt)]
-            else:
+            else:  # self.num_pts == -1
                 bb = self.pts
         elif self.mode == 'rect':
             tl = self.get_tl()
@@ -86,7 +90,7 @@ class ROIControl:
     def pt_in_roi(self, x, y):
         cx, cy = int(x), int(y)
         roi = self.get_bb()
-        if len(roi) != 4:
+        if self.num_pts > 0 and len(roi) != self.num_pts:
             return False
         if self.mode == 'rect':  # roi: [x, y, w, h]
             if cx < roi[0]:
@@ -105,3 +109,6 @@ class ROIControl:
             return point.within(poly)
         else:
             raise(self.mode_error_msg)
+
+    def set_num_pts(self, n):
+        self.num_pts = n
